@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Compact body. Everything important stays inside the adaptive-icon safe zone. -->
+    <path
+        android:fillColor="#FDFCF8"
+        android:pathData="M54,51 C38,51 29,62 30,74 C31,85 40,88 54,88 C68,88 77,85 78,74 C79,62 70,51 54,51 Z" />
+    <path
+        android:fillColor="#E3E5E3"
+        android:pathData="M35,59 C29,63 27,73 31,81 C34,86 39,84 42,78 C44,71 42,63 35,59 Z" />
+    <path
+        android:fillColor="#E3E5E3"
+        android:pathData="M73,59 C79,63 81,73 77,81 C74,86 69,84 66,78 C64,71 66,63 73,59 Z" />
+
+    <!-- The head is tilted independently, giving the owl its curious expression. -->
+    <group
+        android:pivotX="54"
+        android:pivotY="47"
+        android:rotation="-7">
+        <path
+            android:fillColor="#FFFEFA"
+            android:pathData="M54,20 C37,20 27,31 27,46 C27,60 38,68 54,68 C70,68 81,60 81,46 C81,31 71,20 54,20 Z" />
+
+        <!-- Sparse snowy-owl crown markings. -->
+        <path
+            android:fillColor="#B8BBB9"
+            android:pathData="M38,27 C40,25 43,25 45,27 C43,30 40,30 38,27 Z M48,24 C51,22 54,23 55,26 C53,28 50,28 48,24 Z M59,25 C62,23 65,24 66,27 C64,30 61,29 59,25 Z M69,29 C72,28 74,30 74,33 C71,34 69,32 69,29 Z" />
+
+        <!-- Soft facial discs. -->
+        <path
+            android:fillColor="#F5F4EE"
+            android:pathData="M31,45 C31,36 38,30 46,32 C52,34 54,39 54,48 C49,56 42,60 36,56 C33,54 31,50 31,45 Z" />
+        <path
+            android:fillColor="#F5F4EE"
+            android:pathData="M77,45 C77,36 70,30 62,32 C56,34 54,39 54,48 C59,56 66,60 72,56 C75,54 77,50 77,45 Z" />
+
+        <!-- Warm, round eyes: no brows or predatory slant. -->
+        <path
+            android:fillColor="#D89C35"
+            android:pathData="M42,36 A8,8 0,1 0,42,52 A8,8 0,1 0,42,36 Z" />
+        <path
+            android:fillColor="#D89C35"
+            android:pathData="M66,36 A8,8 0,1 0,66,52 A8,8 0,1 0,66,36 Z" />
+        <path
+            android:fillColor="#242526"
+            android:pathData="M42,39 A5,5 0,1 0,42,49 A5,5 0,1 0,42,39 Z" />
+        <path
+            android:fillColor="#242526"
+            android:pathData="M66,39 A5,5 0,1 0,66,49 A5,5 0,1 0,66,39 Z" />
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M39.5,40 A2,2 0,1 0,39.5,44 A2,2 0,1 0,39.5,40 Z" />
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M63.5,40 A2,2 0,1 0,63.5,44 A2,2 0,1 0,63.5,40 Z" />
+
+        <path
+            android:fillColor="#424547"
+            android:pathData="M54,49 L58,54 L54,58 L50,54 Z" />
+    </group>
+
+    <!-- Minimal wing markings and feet survive at small launcher sizes. -->
+    <path
+        android:fillColor="#A7AAA9"
+        android:pathData="M32,69 C35,67 38,68 39,71 C36,73 33,72 32,69 Z M34,76 C37,74 40,75 40,78 C37,80 35,79 34,76 Z M76,69 C73,67 70,68 69,71 C72,73 75,72 76,69 Z M74,76 C71,74 68,75 68,78 C71,80 73,79 74,76 Z" />
+    <path
+        android:fillColor="#4B4D4E"
+        android:pathData="M43,85 C40,85 39,88 41,89 C43,90 45,89 46,87 C47,89 49,90 51,89 C53,88 52,85 49,85 Z M59,85 C56,85 55,88 57,89 C59,90 61,89 62,87 C63,89 65,90 67,89 C69,88 68,85 65,85 Z" />
+</vector>

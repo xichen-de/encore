@@ -1,0 +1,27 @@
+{
+  "format": "fdeck",
+  "version": 1,
+  "name": "Assimil Lesson 15",
+  "cards": [
+    {
+      "front": "à côté de",
+      "back": "next to / beside",
+      "example": "La pharmacie est à côté de la gare.",
+      "exampleTranslation": "The pharmacy is next to the station.",
+      "tags": ["assimil", "lesson-15"]
+    },
+    {
+      "front": "l’endroit",
+      "back": "place",
+      "gender": "m"
+    },
+    {
+      "front": "se dépêcher",
+      "back": "to hurry"
+    },
+    {
+      "front": "Où est l’église ?",
+      "back": "Where is the church?"
+    }
+  ]
+}

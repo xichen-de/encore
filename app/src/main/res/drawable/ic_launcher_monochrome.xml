@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- A single-color, cutout-based version for Android 13+ themed icons. -->
+    <path
+        android:fillColor="#000000"
+        android:fillType="evenOdd"
+        android:pathData="M54,51 C38,51 29,62 30,74 C31,85 40,88 54,88 C68,88 77,85 78,74 C79,62 70,51 54,51 Z M54,20 C37,20 27,31 27,46 C27,60 38,68 54,68 C70,68 81,60 81,46 C81,31 71,20 54,20 Z M42,36 A8,8 0,1 0,42,52 A8,8 0,1 0,42,36 Z M66,36 A8,8 0,1 0,66,52 A8,8 0,1 0,66,36 Z M54,49 L58,54 L54,58 L50,54 Z" />
+    <path
+        android:fillColor="#000000"
+        android:pathData="M35,59 C29,63 27,73 31,81 C34,86 39,84 42,78 C44,71 42,63 35,59 Z M73,59 C79,63 81,73 77,81 C74,86 69,84 66,78 C64,71 66,63 73,59 Z" />
+</vector>
