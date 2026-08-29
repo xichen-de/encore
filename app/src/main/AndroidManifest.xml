@@ -26,21 +26,16 @@
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
                 <data android:mimeType="application/json" />
-                <data android:pathPattern=".*\\.fdeck" />
             </intent-filter>
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
                 <data android:mimeType="application/octet-stream" />
-                <data android:pathPattern=".*\\.fdeck" />
             </intent-filter>
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="content" android:host="*" android:pathPattern=".*\\.fdeck" />
                 <data android:scheme="file" android:host="*" android:pathPattern=".*\\.fdeck" />
             </intent-filter>

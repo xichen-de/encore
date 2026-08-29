@@ -1,9 +1,24 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
     id("com.google.devtools.ksp")
 }
+
+val keystorePropertiesFile = rootProject.file("keystore.properties")
+val keystoreProperties = Properties().apply {
+    if (keystorePropertiesFile.isFile) {
+        keystorePropertiesFile.inputStream().use(::load)
+    }
+}
+val personalSigningConfigured = listOf("storeFile", "storePassword", "keyAlias", "keyPassword")
+    .all { !keystoreProperties.getProperty(it).isNullOrBlank() }
+val releaseVersionName = System.getenv("ENCORE_VERSION_NAME") ?: "1.0.0"
+val releaseVersionCode = System.getenv("ENCORE_VERSION_CODE")?.let { value ->
+    requireNotNull(value.toIntOrNull()) { "ENCORE_VERSION_CODE must be an integer" }
+} ?: 1
 
 android {
     namespace = "app.encore.french"
@@ -13,13 +28,36 @@ android {
         applicationId = "app.encore.french"
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = releaseVersionCode
+        versionName = releaseVersionName
         testInstrumentationRunner = "android.test.InstrumentationTestRunner"
         vectorDrawables.useSupportLibrary = true
     }
 
     buildFeatures { compose = true }
+
+    signingConfigs {
+        if (personalSigningConfigured) {
+            create("personal") {
+                storeFile = file(keystoreProperties.getProperty("storeFile"))
+                storePassword = keystoreProperties.getProperty("storePassword")
+                keyAlias = keystoreProperties.getProperty("keyAlias")
+                keyPassword = keystoreProperties.getProperty("keyPassword")
+            }
+        }
+    }
+
+    buildTypes {
+        debug {
+            if (personalSigningConfigured) signingConfig = signingConfigs.getByName("personal")
+        }
+        release {
+            isMinifyEnabled = true
+            isShrinkResources = true
+            if (personalSigningConfigured) signingConfig = signingConfigs.getByName("personal")
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+        }
+    }
 
     packaging.resources.excludes += "/META-INF/{AL2.0,LGPL2.1}"
 
