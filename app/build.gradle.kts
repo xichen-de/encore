@@ -49,7 +49,8 @@ android {
 
     buildTypes {
         debug {
-            if (personalSigningConfigured) signingConfig = signingConfigs.getByName("personal")
+            applicationIdSuffix = ".debug"
+            versionNameSuffix = "-debug"
         }
         release {
             isMinifyEnabled = true
