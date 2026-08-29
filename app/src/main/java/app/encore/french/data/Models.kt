@@ -9,7 +9,12 @@ enum class Grade { AGAIN, HARD, GOOD, EASY }
 
 @Entity(
     tableName = "cards",
-    indices = [Index("fingerprint"), Index("normalizedFront"), Index("dueAt")]
+    indices = [
+        Index("fingerprint"),
+        Index("normalizedFront"),
+        Index("dueAt"),
+        Index(value = ["deckName", "normalizedFront"])
+    ]
 )
 data class CardEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,

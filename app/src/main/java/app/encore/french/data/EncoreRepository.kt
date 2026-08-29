@@ -3,6 +3,19 @@ package app.encore.french.data
 import androidx.room.withTransaction
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
+import kotlin.random.Random
+
+object ReviewQueueOrder {
+    private val statePriority = listOf(
+        CardState.REVIEW,
+        CardState.RELEARNING,
+        CardState.LEARNING,
+        CardState.NEW
+    )
+
+    fun shuffled(cards: List<CardEntity>, random: Random = Random.Default): List<CardEntity> =
+        statePriority.flatMap { state -> cards.filter { it.state == state }.shuffled(random) }
+}
 
 class EncoreRepository(private val db: EncoreDatabase) {
     private val cards = db.cardDao()
@@ -71,8 +84,10 @@ class EncoreRepository(private val db: EncoreDatabase) {
         ImportOutcome(inserted, updated, moved)
     }
 
-    suspend fun queue(now: Long, deckName: String?): List<CardEntity> =
-        if (deckName == null) cards.reviewQueue(now) else cards.reviewQueueForDeck(now, deckName)
+    suspend fun queue(now: Long, deckName: String?, limit: Int): List<CardEntity> {
+        val eligible = if (deckName == null) cards.reviewQueue(now, limit) else cards.reviewQueueForDeck(now, deckName, limit)
+        return ReviewQueueOrder.shuffled(eligible)
+    }
     suspend fun delete(card: CardEntity) = deleteCards(listOf(card.id))
 
     suspend fun deleteCards(ids: List<Long>) {

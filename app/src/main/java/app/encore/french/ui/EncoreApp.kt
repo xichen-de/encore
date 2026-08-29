@@ -5,7 +5,6 @@ import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -103,6 +102,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.encore.french.ImportState
 import app.encore.french.MainViewModel
+import app.encore.french.REVIEW_LIMIT_OPTIONS
 import app.encore.french.TtsController
 import app.encore.french.data.CardEntity
 import app.encore.french.data.CardState
@@ -166,7 +166,7 @@ fun EncoreApp(vm: MainViewModel, initialIntent: Intent?) {
                     }
                 }
             ) { padding ->
-                AnimatedContent(tab, modifier = Modifier.padding(padding)) { current -> when (current) {
+                Box(Modifier.fillMaxSize().padding(padding)) { when (tab) {
                     Tab.TODAY -> TodayScreen(vm, onReview = { vm.startReview(); reviewing = true })
                     Tab.LIBRARY -> CardsScreen(vm, snackbar, tts, onImport = { picker.launch(arrayOf("application/json", "application/octet-stream", "*/*")) })
                 } }
@@ -191,6 +191,8 @@ private fun TodayScreen(vm: MainViewModel, onReview: () -> Unit) {
     val counts by vm.today.collectAsState()
     val deckNames by vm.deckNames.collectAsState()
     val selectedDeck by vm.selectedDeck.collectAsState()
+    val reviewLimit by vm.reviewLimit.collectAsState()
+    val available = counts.due + counts.new
     Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.statusBars)) {
         PageHeader("Today", selectedDeck ?: "All decks")
         DeckFilter(selectedDeck, deckNames, vm::selectDeck)
@@ -200,8 +202,20 @@ private fun TodayScreen(vm: MainViewModel, onReview: () -> Unit) {
                 TodayMetric("New", counts.new, Modifier.weight(1f))
             }
             Spacer(Modifier.height(20.dp))
-            Button(onReview, enabled = counts.due + counts.new > 0, modifier = Modifier.fillMaxWidth().height(56.dp)) {
-                Text(if (counts.due + counts.new > 0) "Start review" else "No cards due")
+            Text("Cards this session", style = MaterialTheme.typography.labelLarge)
+            Spacer(Modifier.height(8.dp))
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                REVIEW_LIMIT_OPTIONS.forEach { limit ->
+                    FilterChip(
+                        selected = reviewLimit == limit,
+                        onClick = { vm.setReviewLimit(limit) },
+                        label = { Text(limit.toString()) }
+                    )
+                }
+            }
+            Spacer(Modifier.height(20.dp))
+            Button(onReview, enabled = available > 0, modifier = Modifier.fillMaxWidth().height(56.dp)) {
+                Text(if (available > 0) "Start ${minOf(available, reviewLimit)}-card review" else "No cards due")
             }
         }
     }
@@ -504,24 +518,15 @@ private fun CardsScreen(vm: MainViewModel, snackbar: SnackbarHostState, tts: Tts
                 }
             }
         }
-    } else if (viewing != null) {
-        val card = viewing!!
-        CardDetailScreen(
-            card = card,
-            tts = tts,
-            onBack = { viewing = null },
-            onEdit = { viewing = null; editing = card },
-            onDelete = { deleteTarget = card },
-            onReset = { resetIds = setOf(card.id) }
-        )
     } else {
         val focusManager = LocalFocusManager.current
-        Column(
-            Modifier
-                .fillMaxSize()
-                .windowInsetsPadding(WindowInsets.statusBars)
-                .pointerInput(Unit) { detectTapGestures(onTap = { focusManager.clearFocus() }) }
-        ) {
+        Box(Modifier.fillMaxSize()) {
+            Column(
+                Modifier
+                    .fillMaxSize()
+                    .windowInsetsPadding(WindowInsets.statusBars)
+                    .pointerInput(Unit) { detectTapGestures(onTap = { focusManager.clearFocus() }) }
+            ) {
             if (selectionMode) {
                 val visibleIds = cards.mapTo(mutableSetOf(), CardEntity::id)
                 val allVisibleSelected = visibleIds.isNotEmpty() && visibleIds.all { it in selectedIds }
@@ -584,6 +589,19 @@ private fun CardsScreen(vm: MainViewModel, snackbar: SnackbarHostState, tts: Tts
                         letterIndex = letterIndex,
                         modifier = Modifier.align(Alignment.CenterEnd).fillMaxHeight(0.9f).width(20.dp)
                     ) { index -> scope.launch { listState.scrollToItem(index) } }
+                }
+            }
+            }
+            viewing?.let { card ->
+                Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+                    CardDetailScreen(
+                        card = card,
+                        tts = tts,
+                        onBack = { viewing = null },
+                        onEdit = { viewing = null; editing = card },
+                        onDelete = { deleteTarget = card },
+                        onReset = { resetIds = setOf(card.id) }
+                    )
                 }
             }
         }

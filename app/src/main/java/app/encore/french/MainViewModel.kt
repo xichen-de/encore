@@ -1,6 +1,7 @@
 package app.encore.french
 
 import android.app.Application
+import android.content.Context
 import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -38,9 +39,15 @@ sealed interface ImportState {
     data class Complete(val outcome: ImportOutcome) : ImportState
 }
 
+val REVIEW_LIMIT_OPTIONS = listOf(25, 50, 100, 200)
+private const val DEFAULT_REVIEW_LIMIT = 100
+private const val PREFERENCES_NAME = "encore_preferences"
+private const val REVIEW_LIMIT_KEY = "review_limit"
+
 @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val repository: EncoreRepository = (application as EncoreApplication).repository
+    private val preferences = application.getSharedPreferences(PREFERENCES_NAME, Context.MODE_PRIVATE)
     private val clock = flow {
         while (true) {
             emit(System.currentTimeMillis())
@@ -58,11 +65,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val query = MutableStateFlow("")
     val cards = combine(query, selectedDeck) { text, deck -> text to deck }
         .flatMapLatest { (text, deck) -> repository.observeCards(text, deck) }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+        .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
     val importState = MutableStateFlow<ImportState>(ImportState.Idle)
     val importTargetDeck = MutableStateFlow("")
     val importDuplicateAction = MutableStateFlow(DuplicateImportAction.SKIP)
     val reviewCards = MutableStateFlow<List<CardEntity>>(emptyList())
+    val reviewLimit = MutableStateFlow(
+        preferences.getInt(REVIEW_LIMIT_KEY, DEFAULT_REVIEW_LIMIT)
+            .takeIf(REVIEW_LIMIT_OPTIONS::contains) ?: DEFAULT_REVIEW_LIMIT
+    )
     val nextLearningDueAt = MutableStateFlow<Long?>(null)
     private val pendingLearning = mutableMapOf<Long, CardEntity>()
     private val learningJobs = mutableMapOf<Long, Job>()
@@ -104,6 +115,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun setImportDuplicateAction(value: DuplicateImportAction) { importDuplicateAction.value = value }
     fun selectDeck(value: String?) { selectedDeck.value = value }
 
+    fun setReviewLimit(value: Int) {
+        if (value !in REVIEW_LIMIT_OPTIONS) return
+        reviewLimit.value = value
+        preferences.edit().putInt(REVIEW_LIMIT_KEY, value).apply()
+    }
+
     fun renameDeck(oldName: String, newName: String, onComplete: (Result<Unit>) -> Unit) {
         viewModelScope.launch { onComplete(runCatching { repository.renameDeck(oldName, newName) }) }
     }
@@ -119,7 +136,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         learningJobs.clear()
         pendingLearning.clear()
         nextLearningDueAt.value = null
-        viewModelScope.launch { reviewCards.value = repository.queue(System.currentTimeMillis(), selectedDeck.value) }
+        viewModelScope.launch { reviewCards.value = repository.queue(System.currentTimeMillis(), selectedDeck.value, reviewLimit.value) }
     }
 
     fun endReview() {

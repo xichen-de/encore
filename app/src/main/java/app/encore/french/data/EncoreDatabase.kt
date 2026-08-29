@@ -24,16 +24,16 @@ class Converters {
 
 @Dao
 interface CardDao {
-    @Query("SELECT * FROM cards ORDER BY front COLLATE NOCASE, back COLLATE NOCASE, id")
+    @Query("SELECT * FROM cards ORDER BY normalizedFront, id")
     fun observeAll(): Flow<List<CardEntity>>
 
-    @Query("SELECT * FROM cards WHERE deckName = :deckName ORDER BY front COLLATE NOCASE, back COLLATE NOCASE, id")
+    @Query("SELECT * FROM cards WHERE deckName = :deckName ORDER BY normalizedFront, id")
     fun observeDeck(deckName: String): Flow<List<CardEntity>>
 
-    @Query("SELECT * FROM cards WHERE front LIKE '%' || :query || '%' OR back LIKE '%' || :query || '%' ORDER BY front COLLATE NOCASE, back COLLATE NOCASE, id")
+    @Query("SELECT * FROM cards WHERE front LIKE '%' || :query || '%' OR back LIKE '%' || :query || '%' ORDER BY normalizedFront, id")
     fun search(query: String): Flow<List<CardEntity>>
 
-    @Query("SELECT * FROM cards WHERE deckName = :deckName AND (front LIKE '%' || :query || '%' OR back LIKE '%' || :query || '%') ORDER BY front COLLATE NOCASE, back COLLATE NOCASE, id")
+    @Query("SELECT * FROM cards WHERE deckName = :deckName AND (front LIKE '%' || :query || '%' OR back LIKE '%' || :query || '%') ORDER BY normalizedFront, id")
     fun searchDeck(query: String, deckName: String): Flow<List<CardEntity>>
 
     @Query("SELECT DISTINCT deckName FROM cards ORDER BY deckName COLLATE NOCASE")
@@ -48,10 +48,10 @@ interface CardDao {
     @Query("UPDATE cards SET deckName = :newName WHERE deckName = :oldName")
     suspend fun renameDeck(oldName: String, newName: String)
 
-    @Query("SELECT * FROM cards WHERE dueAt <= :now ORDER BY CASE state WHEN 'REVIEW' THEN 0 WHEN 'RELEARNING' THEN 1 WHEN 'LEARNING' THEN 2 ELSE 3 END, dueAt, createdAt LIMIT :limit")
+    @Query("SELECT * FROM cards WHERE dueAt <= :now ORDER BY CASE state WHEN 'REVIEW' THEN 0 WHEN 'RELEARNING' THEN 1 WHEN 'LEARNING' THEN 2 ELSE 3 END, RANDOM() LIMIT :limit")
     suspend fun reviewQueue(now: Long, limit: Int = 100): List<CardEntity>
 
-    @Query("SELECT * FROM cards WHERE deckName = :deckName AND dueAt <= :now ORDER BY CASE state WHEN 'REVIEW' THEN 0 WHEN 'RELEARNING' THEN 1 WHEN 'LEARNING' THEN 2 ELSE 3 END, dueAt, createdAt LIMIT :limit")
+    @Query("SELECT * FROM cards WHERE deckName = :deckName AND dueAt <= :now ORDER BY CASE state WHEN 'REVIEW' THEN 0 WHEN 'RELEARNING' THEN 1 WHEN 'LEARNING' THEN 2 ELSE 3 END, RANDOM() LIMIT :limit")
     suspend fun reviewQueueForDeck(now: Long, deckName: String, limit: Int = 100): List<CardEntity>
 
     @Query("SELECT COUNT(*) FROM cards WHERE state != 'NEW' AND dueAt <= :now")
@@ -94,7 +94,7 @@ interface ReviewDao {
     suspend fun deleteForCards(cardIds: List<Long>)
 }
 
-@Database(entities = [CardEntity::class, ReviewLogEntity::class], version = 4, exportSchema = true)
+@Database(entities = [CardEntity::class, ReviewLogEntity::class], version = 5, exportSchema = true)
 @TypeConverters(Converters::class)
 abstract class EncoreDatabase : RoomDatabase() {
     abstract fun cardDao(): CardDao
@@ -125,9 +125,14 @@ abstract class EncoreDatabase : RoomDatabase() {
                 db.execSQL("CREATE INDEX IF NOT EXISTS index_cards_fingerprint ON cards(fingerprint)")
             }
         }
+        val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_cards_deckName_normalizedFront ON cards(deckName, normalizedFront)")
+            }
+        }
         fun get(context: Context): EncoreDatabase = instance ?: synchronized(this) {
             instance ?: Room.databaseBuilder(context.applicationContext, EncoreDatabase::class.java, "encore.db")
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
                 .build().also { instance = it }
         }
     }

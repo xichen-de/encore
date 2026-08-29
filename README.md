@@ -12,9 +12,10 @@
 Encore is an offline French spaced-repetition app for Android. Cards and review progress are stored locally on the device; there is no account and no network dependency.
 
 <p align="center">
-  <img src="docs/images/Screenshot_20260826_185529.png" width="30%" alt="Library screen" />
-  <img src="docs/images/Screenshot_20260826_185516.png" width="30%" alt="Review screen" />
-  <img src="docs/images/Screenshot_20260826_185624.png" width="30%" alt="Card detail screen" />
+  <img src="docs/images/Screenshot_20260829_171705.png" width="23%" alt="Today screen with review session size options" />
+  <img src="docs/images/Screenshot_20260829_171723.png" width="23%" alt="Review screen with answer and grading options" />
+  <img src="docs/images/Screenshot_20260829_171259.png" width="23%" alt="Searchable card library" />
+  <img src="docs/images/Screenshot_20260829_171331.png" width="23%" alt="Card detail screen with example and notes" />
 </p>
 
 ## Features
@@ -75,7 +76,7 @@ A `.fdeck` file is UTF-8 JSON with this structure:
 
 Save the JSON as a file ending in `.fdeck`. It is plain JSON, not a ZIP archive. Omit optional fields when they have no value.
 
-A sample deck is available at [`samples/assimil-lesson-15.fdeck`](samples/assimil-lesson-15.fdeck).
+A sample deck is available at [`samples/french-vocabulary.fdeck`](samples/french-vocabulary.fdeck).
 
 ## Develop
 
