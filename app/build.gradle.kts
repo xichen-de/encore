@@ -15,10 +15,10 @@ val keystoreProperties = Properties().apply {
 }
 val personalSigningConfigured = listOf("storeFile", "storePassword", "keyAlias", "keyPassword")
     .all { !keystoreProperties.getProperty(it).isNullOrBlank() }
-val releaseVersionName = System.getenv("ENCORE_VERSION_NAME") ?: "1.0.0"
+val releaseVersionName = System.getenv("ENCORE_VERSION_NAME") ?: "1.0.2"
 val releaseVersionCode = System.getenv("ENCORE_VERSION_CODE")?.let { value ->
     requireNotNull(value.toIntOrNull()) { "ENCORE_VERSION_CODE must be an integer" }
-} ?: 1
+} ?: 1000002
 
 android {
     namespace = "app.encore.french"
@@ -30,7 +30,7 @@ android {
         targetSdk = 36
         versionCode = releaseVersionCode
         versionName = releaseVersionName
-        testInstrumentationRunner = "android.test.InstrumentationTestRunner"
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
     }
 
@@ -93,6 +93,7 @@ dependencies {
 
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("junit:junit:4.13.2")
+    androidTestImplementation("androidx.test:runner:1.6.2")
 }
 
 ksp { arg("room.schemaLocation", "$projectDir/schemas") }

@@ -93,16 +93,20 @@ class EncoreRepository(private val db: EncoreDatabase) {
     suspend fun deleteCards(ids: List<Long>) {
         if (ids.isEmpty()) return
         db.withTransaction {
-            db.reviewDao().deleteForCards(ids)
-            cards.deleteByIds(ids)
+            ids.chunked(500).forEach { batch ->
+                db.reviewDao().deleteForCards(batch)
+                cards.deleteByIds(batch)
+            }
         }
     }
 
     suspend fun resetProgress(ids: List<Long>, now: Long) {
         if (ids.isEmpty()) return
         db.withTransaction {
-            db.reviewDao().deleteForCards(ids)
-            cards.updateAll(cards.findByIds(ids).map { CardFactory.resetProgress(it, now) })
+            ids.chunked(500).forEach { batch ->
+                db.reviewDao().deleteForCards(batch)
+                cards.updateAll(cards.findByIds(batch).map { CardFactory.resetProgress(it, now) })
+            }
         }
     }
 

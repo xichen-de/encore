@@ -106,6 +106,7 @@ object Scheduler {
                 Grade.AGAIN -> interval
             }
         }
+        interval = interval.coerceIn(1, MAXIMUM_INTERVAL_DAYS)
         return Scheduling(CardState.REVIEW, interval * DAY_MS, 0, interval)
     }
 

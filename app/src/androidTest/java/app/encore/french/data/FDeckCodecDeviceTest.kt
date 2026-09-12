@@ -27,6 +27,20 @@ class FDeckCodecDeviceTest {
         }
     }
 
+    @Test fun rejectsWrongFieldTypes() {
+        val invalidDecks = listOf(
+            """{"format":"fdeck","version":1.5,"name":"x","cards":[]}""",
+            """{"format":"fdeck","version":"1","name":"x","cards":[]}""",
+            """{"format":"fdeck","version":1,"name":42,"cards":[]}""",
+            """{"format":"fdeck","version":1,"name":"x","cards":[{"front":42,"back":"x"}]}""",
+            """{"format":"fdeck","version":1,"name":"x","cards":[{"front":"x","back":"y","note":{}}]}""",
+            """{"format":"fdeck","version":1,"name":"x","cards":[{"front":"x","back":"y","tags":"tag"}]}"""
+        )
+        invalidDecks.forEach { json ->
+            assertThrows(DeckParseException.Invalid::class.java) { FDeckCodec.parse(json) }
+        }
+    }
+
     @Test fun rejectsInvalidGender() {
         assertThrows(DeckParseException.Invalid::class.java) {
             FDeckCodec.parse("""{"format":"fdeck","version":1,"name":"x","cards":[{"front":"église","back":"church","gender":"x"}]}""")

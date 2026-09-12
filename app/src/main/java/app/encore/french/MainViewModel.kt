@@ -79,6 +79,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val learningJobs = mutableMapOf<Long, Job>()
     private var reviewSession = 0
     private var reviewActive = false
+    private var grading = false
 
     fun search(value: String) { query.value = value }
 
@@ -136,11 +137,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         learningJobs.clear()
         pendingLearning.clear()
         nextLearningDueAt.value = null
-        viewModelScope.launch { reviewCards.value = repository.queue(System.currentTimeMillis(), selectedDeck.value, reviewLimit.value) }
+        reviewCards.value = emptyList()
+        val session = reviewSession
+        viewModelScope.launch {
+            val queue = repository.queue(System.currentTimeMillis(), selectedDeck.value, reviewLimit.value)
+            if (reviewActive && session == reviewSession) reviewCards.value = queue
+        }
     }
 
     fun endReview() {
         reviewActive = false
+        reviewSession += 1
         learningJobs.values.forEach(Job::cancel)
         learningJobs.clear()
         pendingLearning.clear()
@@ -148,12 +155,20 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun grade(card: CardEntity, grade: Grade) {
+        if (!reviewActive || grading || reviewCards.value.firstOrNull() != card) return
+        grading = true
+        val session = reviewSession
         viewModelScope.launch {
-            val now = System.currentTimeMillis()
-            val updated = repository.grade(card, grade, now)
-            reviewCards.value = reviewCards.value.drop(1)
-            if (updated.state == CardState.LEARNING || updated.state == CardState.RELEARNING) {
-                scheduleLearningCard(updated)
+            try {
+                val updated = repository.grade(card, grade, System.currentTimeMillis())
+                if (reviewActive && session == reviewSession) {
+                    reviewCards.update { queue -> queue.filterNot { it.id == card.id } }
+                    if (updated.state == CardState.LEARNING || updated.state == CardState.RELEARNING) {
+                        scheduleLearningCard(updated)
+                    }
+                }
+            } finally {
+                grading = false
             }
         }
     }

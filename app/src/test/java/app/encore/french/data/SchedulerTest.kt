@@ -64,6 +64,17 @@ class SchedulerTest {
         assertTrue(good < easy)
     }
 
+    @Test fun matureIntervalsNeverExceedMaximum() {
+        val reviewed = card.copy(state = CardState.REVIEW, stability = 36_500.0,
+            lastReviewedAt = now - 86_400_000L)
+        val preview = Scheduler.preview(reviewed, now)
+        for (grade in listOf(Grade.HARD, Grade.GOOD, Grade.EASY)) {
+            val result = preview.getValue(grade)
+            assertTrue(result.card.scheduledDays <= Scheduler.MAXIMUM_INTERVAL_DAYS)
+            assertTrue(result.card.dueAt <= now + Scheduler.MAXIMUM_INTERVAL_DAYS * 86_400_000L)
+        }
+    }
+
     private fun assertClose(expected: Double, actual: Double) {
         assertTrue("Expected $expected, got $actual", abs(expected - actual) < 1e-7)
     }

@@ -26,7 +26,10 @@ object FDeckCodec {
         }
         if (root.optString("format") != "fdeck") throw DeckParseException.Invalid("Not an fdeck file: format must be \"fdeck\".")
         if (!root.has("version")) throw DeckParseException.Invalid("Missing required field: version.")
-        val version = root.optInt("version", -1)
+        val rawVersion = root.opt("version")
+        if (rawVersion !is Number || rawVersion.toDouble() != rawVersion.toInt().toDouble())
+            throw DeckParseException.Invalid("Version must be an integer.")
+        val version = rawVersion.toInt()
         if (version != 1) throw DeckParseException.UnsupportedVersion(version)
         val name = requiredString(root, "name", "deck").trim()
         val array = root.optJSONArray("cards") ?: throw DeckParseException.Invalid("Missing required array: cards.")
@@ -39,7 +42,11 @@ object FDeckCodec {
                 if (gender != null && gender !in setOf("m", "f")) {
                     throw DeckParseException.Invalid("Card ${index + 1} has invalid gender; use \"m\" or \"f\".")
                 }
-                val tags = item.optJSONArray("tags")?.toStrings(index) ?: emptyList()
+                val tags = if (!item.has("tags") || item.isNull("tags")) emptyList() else {
+                    val values = item.optJSONArray("tags")
+                        ?: throw DeckParseException.Invalid("Tags on card ${index + 1} must be an array.")
+                    values.toStrings(index)
+                }
                 add(ImportCard(front, back, gender, optionalString(item, "example"),
                     optionalString(item, "exampleTranslation"), optionalString(item, "note"), tags))
             }
@@ -62,13 +69,18 @@ object FDeckCodec {
     }.toString(2)
 
     private fun requiredString(obj: JSONObject, key: String, context: String): String {
-        if (!obj.has(key) || obj.isNull(key) || obj.optString(key).isBlank())
+        val value = obj.opt(key)
+        if (value !is String || value.isBlank())
             throw DeckParseException.Invalid("Missing or empty $key in $context.")
-        return obj.optString(key)
+        return value
     }
 
-    private fun optionalString(obj: JSONObject, key: String): String? =
-        if (!obj.has(key) || obj.isNull(key)) null else obj.optString(key).trim().takeIf(String::isNotEmpty)
+    private fun optionalString(obj: JSONObject, key: String): String? {
+        if (!obj.has(key) || obj.isNull(key)) return null
+        val value = obj.opt(key)
+        if (value !is String) throw DeckParseException.Invalid("$key must be text.")
+        return value.trim().takeIf(String::isNotEmpty)
+    }
 
     private fun JSONArray.toStrings(cardIndex: Int): List<String> = buildList {
         repeat(length()) { i ->
