@@ -30,14 +30,11 @@ interface CardDao {
     @Query("SELECT * FROM cards WHERE deckName = :deckName ORDER BY normalizedFront, id")
     fun observeDeck(deckName: String): Flow<List<CardEntity>>
 
-    @Query("SELECT * FROM cards WHERE front LIKE '%' || :query || '%' OR back LIKE '%' || :query || '%' ORDER BY normalizedFront, id")
+    @Query("SELECT * FROM cards WHERE front LIKE '%' || :query || '%' ESCAPE '\\' OR back LIKE '%' || :query || '%' ESCAPE '\\' ORDER BY normalizedFront, id")
     fun search(query: String): Flow<List<CardEntity>>
 
-    @Query("SELECT * FROM cards WHERE deckName = :deckName AND (front LIKE '%' || :query || '%' OR back LIKE '%' || :query || '%') ORDER BY normalizedFront, id")
+    @Query("SELECT * FROM cards WHERE deckName = :deckName AND (front LIKE '%' || :query || '%' ESCAPE '\\' OR back LIKE '%' || :query || '%' ESCAPE '\\') ORDER BY normalizedFront, id")
     fun searchDeck(query: String, deckName: String): Flow<List<CardEntity>>
-
-    @Query("SELECT DISTINCT deckName FROM cards ORDER BY deckName COLLATE NOCASE")
-    fun observeDeckNames(): Flow<List<String>>
 
     @Query("SELECT deckName, COUNT(*) AS count FROM cards GROUP BY deckName ORDER BY deckName COLLATE NOCASE")
     fun observeDeckCounts(): Flow<List<DeckCount>>

@@ -22,12 +22,10 @@ class EncoreRepository(private val db: EncoreDatabase) {
 
     fun observeCards(query: String, deckName: String?): Flow<List<CardEntity>> = when {
         deckName == null && query.isBlank() -> cards.observeAll()
-        deckName == null -> cards.search(query.trim())
+        deckName == null -> cards.search(escapeLike(query.trim()))
         query.isBlank() -> cards.observeDeck(deckName)
-        else -> cards.searchDeck(query.trim(), deckName)
+        else -> cards.searchDeck(escapeLike(query.trim()), deckName)
     }
-
-    fun observeDeckNames(): Flow<List<String>> = cards.observeDeckNames()
 
     fun observeDeckCounts(): Flow<List<DeckCount>> = cards.observeDeckCounts()
 
@@ -37,7 +35,7 @@ class EncoreRepository(private val db: EncoreDatabase) {
         cards.renameDeck(oldName, trimmed)
     }
 
-    suspend fun deleteDeck(deckName: String) = deleteCards(cards.idsForDeck(deckName))
+    suspend fun deleteDeck(deckName: String) = db.withTransaction { deleteCards(cards.idsForDeck(deckName)) }
 
     fun observeToday(now: Long, deckName: String?): Flow<TodayCounts> = if (deckName == null) {
         combine(cards.observeDueCount(now), cards.observeNewCount(), ::TodayCounts)
@@ -46,12 +44,11 @@ class EncoreRepository(private val db: EncoreDatabase) {
     }
 
     suspend fun preview(deck: FDeck): ImportPreview {
-        val unique = deck.cards.distinctBy { Fingerprints.card(it.front, it.back) }
-        val fingerprints = unique.map { Fingerprints.card(it.front, it.back) }
-        val fronts = unique.map { Fingerprints.normalize(it.front) }.distinct()
-        val existingCards = chunked(fingerprints) { cards.existingCards(it) }
+        val unique = ImportPlanner.uniqueByFingerprint(deck)
+        val fronts = unique.values.map { Fingerprints.normalize(it.front) }.distinct()
+        val existingCards = chunked(unique.keys.toList()) { cards.existingCards(it) }
         val existingFronts = chunked(fronts) { cards.existingFronts(it) }.toSet()
-        return ImportPlanner.plan(deck, existingCards, existingFronts)
+        return ImportPlanner.plan(deck, unique, existingCards, existingFronts)
     }
 
     suspend fun import(
@@ -134,6 +131,10 @@ class EncoreRepository(private val db: EncoreDatabase) {
         result.card
     }
 
+    /** Makes `%`, `_` and `\` in a search match literally; the DAO queries use `ESCAPE '\'`. */
+    private fun escapeLike(value: String): String =
+        value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
     private suspend fun <T, R> chunked(values: List<T>, block: suspend (List<T>) -> List<R>): List<R> {
         if (values.isEmpty()) return emptyList()
         return values.chunked(500).flatMap { block(it) }
@@ -163,12 +164,21 @@ object ImportResolver {
 }
 
 object ImportPlanner {
-    fun plan(deck: FDeck, existingCards: List<CardEntity>, existingFronts: Set<String>): ImportPreview {
-        val unique = deck.cards.distinctBy { Fingerprints.card(it.front, it.back) }
+    fun plan(deck: FDeck, existingCards: List<CardEntity>, existingFronts: Set<String>): ImportPreview =
+        plan(deck, uniqueByFingerprint(deck), existingCards, existingFronts)
+
+    /** First occurrence of each distinct card in the file, keyed by fingerprint. Hashes every card once. */
+    fun uniqueByFingerprint(deck: FDeck): Map<String, ImportCard> = LinkedHashMap<String, ImportCard>().apply {
+        deck.cards.forEach { putIfAbsent(Fingerprints.card(it.front, it.back), it) }
+    }
+
+    fun plan(deck: FDeck, unique: Map<String, ImportCard>, existingCards: List<CardEntity>, existingFronts: Set<String>): ImportPreview {
         val existingByFingerprint = existingCards.groupBy(CardEntity::fingerprint)
-        val newCards = unique.filter { Fingerprints.card(it.front, it.back) !in existingByFingerprint }
-        val duplicateMatches = unique.mapNotNull { incoming ->
-            existingByFingerprint[Fingerprints.card(incoming.front, incoming.back)]?.firstOrNull()?.let { DuplicateMatch(incoming, it) }
+        val newCards = mutableListOf<ImportCard>()
+        val duplicateMatches = mutableListOf<DuplicateMatch>()
+        unique.forEach { (fingerprint, incoming) ->
+            val existing = existingByFingerprint[fingerprint]?.firstOrNull()
+            if (existing == null) newCards += incoming else duplicateMatches += DuplicateMatch(incoming, existing)
         }
         val conflicts = newCards.count { Fingerprints.normalize(it.front) in existingFronts }
         return ImportPreview(deck, newCards, deck.cards.size - newCards.size, conflicts, duplicateMatches, deck.cards.size - unique.size)
@@ -181,7 +191,7 @@ object CardFactory {
         val back = card.back.trim()
         require(front.isNotEmpty()) { "French text is required." }
         require(back.isNotEmpty()) { "English translation is required." }
-        require(card.gender == null || card.gender in setOf("m", "f")) { "Gender must be m or f." }
+        require(card.gender == null || card.gender == "m" || card.gender == "f") { "Gender must be m or f." }
         return CardEntity(
             deckName = deckName.trim().ifEmpty { "My cards" }, front = front, back = back,
             gender = card.gender, example = card.example?.trim()?.takeIf(String::isNotEmpty),

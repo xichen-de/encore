@@ -26,6 +26,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -55,15 +56,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
     val selectedDeck = MutableStateFlow<String?>(null)
-    val deckNames = repository.observeDeckNames()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     val deckCounts = repository.observeDeckCounts()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    val deckNames = deckCounts.map { counts -> counts.map(DeckCount::deckName) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     val today = combine(clock, selectedDeck) { now, deck -> now to deck }
         .flatMapLatest { (now, deck) -> repository.observeToday(now, deck) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), TodayCounts(0, 0))
-    private val query = MutableStateFlow("")
-    val cards = combine(query, selectedDeck) { text, deck -> text to deck }
+    private val _query = MutableStateFlow("")
+    val query: StateFlow<String> = _query
+    val cards = combine(_query, selectedDeck) { text, deck -> text to deck }
         .flatMapLatest { (text, deck) -> repository.observeCards(text, deck) }
         .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
     val importState = MutableStateFlow<ImportState>(ImportState.Idle)
@@ -81,7 +83,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private var reviewActive = false
     private var grading = false
 
-    fun search(value: String) { query.value = value }
+    fun search(value: String) { _query.value = value }
 
     fun readDeck(uri: Uri) {
         importState.value = ImportState.Loading()
@@ -91,10 +93,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     getApplication<Application>().contentResolver.openInputStream(uri)?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }
                         ?: throw DeckParseException.Invalid("Android could not open this file.")
                 }
-                val deck = FDeckCodec.parse(json)
-                importTargetDeck.value = deck.name
+                // Parsing and fingerprinting thousands of cards is CPU-bound; keep it off the main thread.
+                val preview = withContext(Dispatchers.Default) { repository.preview(FDeckCodec.parse(json)) }
+                importTargetDeck.value = preview.deck.name
                 importDuplicateAction.value = DuplicateImportAction.SKIP
-                ImportState.Preview(repository.preview(deck))
+                ImportState.Preview(preview)
             } catch (error: Exception) {
                 ImportState.Error(error.message ?: "This file could not be imported.")
             }
@@ -123,7 +126,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun renameDeck(oldName: String, newName: String, onComplete: (Result<Unit>) -> Unit) {
-        viewModelScope.launch { onComplete(runCatching { repository.renameDeck(oldName, newName) }) }
+        viewModelScope.launch {
+            val result = runCatching { repository.renameDeck(oldName, newName) }
+            if (result.isSuccess && selectedDeck.value == oldName && newName.isNotBlank()) selectedDeck.value = newName.trim()
+            onComplete(result)
+        }
     }
 
     fun deleteDeck(deckName: String, onComplete: (Result<Unit>) -> Unit) {
@@ -160,8 +167,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val session = reviewSession
         viewModelScope.launch {
             try {
-                val updated = repository.grade(card, grade, System.currentTimeMillis())
-                if (reviewActive && session == reviewSession) {
+                // On failure the card stays at the front of the queue so it can be graded again.
+                val updated = runCatching { repository.grade(card, grade, System.currentTimeMillis()) }.getOrNull()
+                if (updated != null && reviewActive && session == reviewSession) {
                     reviewCards.update { queue -> queue.filterNot { it.id == card.id } }
                     if (updated.state == CardState.LEARNING || updated.state == CardState.RELEARNING) {
                         scheduleLearningCard(updated)
@@ -189,7 +197,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun delete(card: CardEntity) { viewModelScope.launch { repository.delete(card) } }
+    fun delete(card: CardEntity, onComplete: (Result<Unit>) -> Unit = {}) {
+        viewModelScope.launch { onComplete(runCatching { repository.delete(card) }) }
+    }
 
     fun deleteCards(ids: List<Long>, onComplete: (Result<Unit>) -> Unit = {}) {
         viewModelScope.launch { onComplete(runCatching { repository.deleteCards(ids) }) }
@@ -212,11 +222,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun export(uri: Uri, selected: List<CardEntity>, onComplete: (String) -> Unit) {
+        val deckName = selectedDeck.value ?: "Encore export"
         viewModelScope.launch {
             val result = runCatching {
                 withContext(Dispatchers.IO) {
-                    val json = FDeckCodec.encode("Encore export", selected)
-                    getApplication<Application>().contentResolver.openOutputStream(uri, "w")?.bufferedWriter(Charsets.UTF_8)?.use { it.write(json) }
+                    val json = FDeckCodec.encode(deckName, selected)
+                    // "wt" truncates, so overwriting a longer existing file cannot leave trailing bytes behind.
+                    getApplication<Application>().contentResolver.openOutputStream(uri, "wt")?.bufferedWriter(Charsets.UTF_8)?.use { it.write(json) }
                         ?: error("Android could not create the file.")
                 }
             }

@@ -81,6 +81,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -114,6 +115,7 @@ import app.encore.french.data.ImportPreview
 import app.encore.french.data.ImportCard
 import app.encore.french.data.TAG_SEPARATOR
 import app.encore.french.data.Scheduler
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
@@ -263,7 +265,8 @@ private fun ImportPreviewPanel(preview: ImportPreview, targetDeck: String, deckN
         Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
             Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 SummaryRow("New cards", preview.newCards.size)
-                SummaryRow("Already present", preview.duplicateCount)
+                SummaryRow("Already in library", preview.duplicateMatches.size)
+                if (preview.repeatedInFileCount > 0) SummaryRow("Repeated in file", preview.repeatedInFileCount)
                 if (preview.conflictCount > 0) {
                     HorizontalDivider(); Text("${preview.conflictCount} ${if (preview.conflictCount == 1) "card has" else "cards have"} the same French front but a different translation. They will be imported as separate cards.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
@@ -334,8 +337,7 @@ private fun DeckFilter(selected: String?, deckNames: List<String>, onSelect: (St
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         item { FilterChip(selected == null, { onSelect(null) }, label = { Text("All decks") }) }
-        items(deckNames.size) { index ->
-            val deck = deckNames[index]
+        items(deckNames, key = { it }) { deck ->
             FilterChip(selected == deck, { onSelect(deck) }, label = { Text(deck) })
         }
     }
@@ -348,8 +350,7 @@ private fun DeckChooser(value: String, deckNames: List<String>, onValueChange: (
         if (deckNames.isNotEmpty()) {
             Spacer(Modifier.height(8.dp))
             LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(deckNames.size) { index ->
-                    val deck = deckNames[index]
+                items(deckNames, key = { it }) { deck ->
                     FilterChip(value == deck, { onValueChange(deck) }, label = { Text(deck) })
                 }
             }
@@ -381,7 +382,10 @@ private fun ReviewScreen(vm: MainViewModel, tts: TtsController, onBack: () -> Un
             Spacer(Modifier.weight(1f)); Text(if (queue.isEmpty()) "" else "${queue.size} remaining", color = MaterialTheme.colorScheme.onSurfaceVariant); Spacer(Modifier.width(12.dp))
         }
         if (queue.isEmpty()) {
-            val pendingMinutes = nextLearningDueAt?.let { ((it - System.currentTimeMillis()).coerceAtLeast(0) + 59_999) / 60_000 }
+            val now by produceState(System.currentTimeMillis(), nextLearningDueAt) {
+                while (nextLearningDueAt != null) { delay(1_000); value = System.currentTimeMillis() }
+            }
+            val pendingMinutes = nextLearningDueAt?.let { ((it - now).coerceAtLeast(0) + 59_999) / 60_000 }
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 if (pendingMinutes != null) StatusPanel(Icons.Rounded.MoreHoriz, "Next card in $pendingMinutes min", "", "Finish", onBack)
                 else StatusPanel(Icons.Rounded.Check, "Review complete", "", "Done", onBack)
@@ -479,7 +483,7 @@ private fun CardsScreen(vm: MainViewModel, snackbar: SnackbarHostState, tts: Tts
     val deckNames by vm.deckNames.collectAsState()
     val deckCounts by vm.deckCounts.collectAsState()
     val selectedDeck by vm.selectedDeck.collectAsState()
-    var search by remember { mutableStateOf("") }
+    var search by remember { mutableStateOf(vm.query.value) }
     var deleteTarget by remember { mutableStateOf<CardEntity?>(null) }
     var creating by remember { mutableStateOf(false) }
     var editing by remember { mutableStateOf<CardEntity?>(null) }
@@ -606,7 +610,10 @@ private fun CardsScreen(vm: MainViewModel, snackbar: SnackbarHostState, tts: Tts
             }
         }
     }
-    deleteTarget?.let { card -> AlertDialog(onDismissRequest = { deleteTarget = null }, title = { Text("Delete card?") }, text = { Text("“${card.front}” and its review history will be removed.") }, confirmButton = { TextButton(onClick = { vm.delete(card); if (viewing?.id == card.id) viewing = null; deleteTarget = null }, colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)) { Text("Delete") } }, dismissButton = { Button({ deleteTarget = null }) { Text("Cancel") } }) }
+    deleteTarget?.let { card -> AlertDialog(onDismissRequest = { deleteTarget = null }, title = { Text("Delete card?") }, text = { Text("“${card.front}” and its review history will be removed.") }, confirmButton = { TextButton(onClick = {
+        vm.delete(card) { result -> result.onFailure { error -> scope.launch { snackbar.showSnackbar(error.message ?: "Couldn’t delete the card") } } }
+        if (viewing?.id == card.id) viewing = null; deleteTarget = null
+    }, colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)) { Text("Delete") } }, dismissButton = { Button({ deleteTarget = null }) { Text("Cancel") } }) }
     if (confirmBulkDelete) AlertDialog(
         onDismissRequest = { confirmBulkDelete = false },
         title = { Text("Delete ${selectedIds.size} cards?") },
@@ -785,7 +792,7 @@ private fun LibraryCard(
                     CardPill(card.deckName, container = MaterialTheme.colorScheme.primaryContainer, content = MaterialTheme.colorScheme.onPrimaryContainer)
                     val isDue = card.state == CardState.REVIEW && card.dueAt <= System.currentTimeMillis()
                     CardPill(
-                        cardStatus(card),
+                        cardStatus(card, isDue),
                         container = if (isDue) MaterialTheme.colorScheme.tertiaryContainer else MaterialTheme.colorScheme.surfaceContainer,
                         content = if (isDue) MaterialTheme.colorScheme.onTertiaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -806,10 +813,10 @@ private fun CardPill(label: String, container: androidx.compose.ui.graphics.Colo
     }
 }
 
-private fun cardStatus(card: CardEntity): String = when (card.state) {
+private fun cardStatus(card: CardEntity, isDue: Boolean): String = when (card.state) {
     CardState.NEW -> "New"
     CardState.LEARNING, CardState.RELEARNING -> "Learning"
-    CardState.REVIEW -> if (card.dueAt <= System.currentTimeMillis()) "Due" else "Scheduled"
+    CardState.REVIEW -> if (isDue) "Due" else "Scheduled"
 }
 
 @Composable

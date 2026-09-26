@@ -8,14 +8,23 @@ import java.text.Normalizer
 import java.util.Locale
 
 object Fingerprints {
+    private val whitespace = Regex("\\s+")
+    private val hexDigits = "0123456789abcdef".toCharArray()
+
     fun normalize(value: String): String = Normalizer.normalize(value.trim(), Normalizer.Form.NFKC)
         .lowercase(Locale.ROOT)
-        .replace(Regex("\\s+"), " ")
+        .replace(whitespace, " ")
 
     fun card(front: String, back: String): String {
         val canonical = "${normalize(front)}\u0000${normalize(back)}"
-        return MessageDigest.getInstance("SHA-256").digest(canonical.toByteArray(Charsets.UTF_8))
-            .joinToString("") { "%02x".format(it) }
+        val digest = MessageDigest.getInstance("SHA-256").digest(canonical.toByteArray(Charsets.UTF_8))
+        val hex = CharArray(digest.size * 2)
+        digest.forEachIndexed { i, byte ->
+            val value = byte.toInt() and 0xFF
+            hex[i * 2] = hexDigits[value ushr 4]
+            hex[i * 2 + 1] = hexDigits[value and 0x0F]
+        }
+        return String(hex)
     }
 }
 
@@ -39,7 +48,7 @@ object FDeckCodec {
                 val front = requiredString(item, "front", "card ${index + 1}").trim()
                 val back = requiredString(item, "back", "card ${index + 1}").trim()
                 val gender = optionalString(item, "gender")?.lowercase(Locale.ROOT)
-                if (gender != null && gender !in setOf("m", "f")) {
+                if (gender != null && gender !in GENDERS) {
                     throw DeckParseException.Invalid("Card ${index + 1} has invalid gender; use \"m\" or \"f\".")
                 }
                 val tags = if (!item.has("tags") || item.isNull("tags")) emptyList() else {
@@ -92,3 +101,4 @@ object FDeckCodec {
 }
 
 const val TAG_SEPARATOR = "\u001F"
+private val GENDERS = setOf("m", "f")

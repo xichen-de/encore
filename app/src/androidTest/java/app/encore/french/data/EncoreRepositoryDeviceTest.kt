@@ -2,12 +2,27 @@ package app.encore.french.data
 
 import androidx.room.Room
 import androidx.test.platform.app.InstrumentationRegistry
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class EncoreRepositoryDeviceTest {
+    @Test fun searchTreatsLikeWildcardsAsLiteralText() = runBlocking {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val db = Room.inMemoryDatabaseBuilder(context, EncoreDatabase::class.java).build()
+        try {
+            val repository = EncoreRepository(db)
+            repository.addCard(ImportCard("100 % sûr", "100% sure"), "Phrases", 1L)
+            repository.addCard(ImportCard("sûr", "sure"), "Phrases", 1L)
+            assertEquals(listOf("100 % sûr"), repository.observeCards("%", null).first().map(CardEntity::front))
+            assertTrue(repository.observeCards("_", "Phrases").first().isEmpty())
+        } finally {
+            db.close()
+        }
+    }
+
     @Test fun bulkResetAndDeleteHandleMoreThanOneSqliteBatch() = runBlocking {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val db = Room.inMemoryDatabaseBuilder(context, EncoreDatabase::class.java).build()

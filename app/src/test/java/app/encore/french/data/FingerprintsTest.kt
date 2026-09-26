@@ -18,6 +18,24 @@ class FingerprintsTest {
         assertEquals("où", Fingerprints.normalize("OÙ"))
     }
 
+    @Test fun fingerprintIsLowercaseHexSha256OfNormalizedText() {
+        // Stored fingerprints must stay stable across releases.
+        assertEquals("47f083c708e642962836cf2f7bb5a349be39c987328b43d9074b29a51c29a9b4", Fingerprints.card(" ÉGLISE", "Church "))
+    }
+
+    @Test fun planSeparatesLibraryDuplicatesFromRepeatsInFile() {
+        val existingCard = ImportCard("où", "where")
+        val fresh = ImportCard("quand", "when")
+        val deck = FDeck("Questions", listOf(existingCard, fresh, fresh.copy(front = "QUAND")))
+        val existing = listOf(CardFactory.manual(existingCard, "Existing", 1L).copy(id = 3L))
+        val preview = ImportPlanner.plan(deck, existing, emptySet())
+        assertEquals(listOf(fresh), preview.newCards)
+        assertEquals(1, preview.duplicateMatches.size)
+        assertEquals(3L, preview.duplicateMatches.single().existing.id)
+        assertEquals(1, preview.repeatedInFileCount)
+        assertEquals(2, preview.duplicateCount)
+    }
+
     @Test fun sameFrontWithDifferentBackIsNotDuplicate() {
         assertNotEquals(Fingerprints.card("l’endroit", "place"), Fingerprints.card("l’endroit", "location"))
     }
